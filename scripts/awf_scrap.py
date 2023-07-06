@@ -55,7 +55,7 @@ def handler():
 
 max_time = 100
 
-for source in tqdm(cameras_ids[:10]):
+for source in tqdm(cameras_ids):
     # try:
     signal.signal(signal.SIGALRM, handler)
     signal.alarm(max_time)
