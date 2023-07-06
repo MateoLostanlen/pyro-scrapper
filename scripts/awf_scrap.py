@@ -98,6 +98,8 @@ def remove_if_gray(file):
     if d == 0:
         os.remove(file)
 
+    cv2.imwrite(file, im)
+
 
 imgs = glob.glob(OUTPUT_PATH + "/**/*.jpg")
 
