@@ -56,34 +56,36 @@ def handler():
 max_time = 100
 
 for source in tqdm(cameras_ids):
-    # try:
-    signal.signal(signal.SIGALRM, handler)
-    signal.alarm(max_time)
-    source_path = os.path.join(OUTPUT_PATH, source)
-    os.makedirs(source_path, exist_ok=True)
-    url = f"https://ts1.alertwildfire.org/text/timelapse/?source={source}&preset={DURATION}"
-    response = requests.get(url, headers=HEADERS)
-    for i, chunk in enumerate(generate_chunks(response)):
-        output_path = os.path.join(source_path, f"{str(i).zfill(8)}.jpg")
-        with open(output_path, "wb") as f:
-            f.write(chunk)
+    try:
+        signal.signal(signal.SIGALRM, handler)
+        signal.alarm(max_time)
+        source_path = os.path.join(OUTPUT_PATH, source)
+        os.makedirs(source_path, exist_ok=True)
+        url = f"https://ts1.alertwildfire.org/text/timelapse/?source={source}&preset={DURATION}"
+        response = requests.get(url, headers=HEADERS)
+        for i, chunk in enumerate(generate_chunks(response)):
+            output_path = os.path.join(source_path, f"{str(i).zfill(8)}.jpg")
+            with open(output_path, "wb") as f:
+                f.write(chunk)
 
-    imgs = glob.glob(source_path + "/*")
-    imgs.sort()
-    nb_imgs = len(imgs)
+        imgs = glob.glob(source_path + "/*")
+        imgs.sort()
+        nb_imgs = len(imgs)
 
-    dt = 6 * 60 * 60 / nb_imgs
+        if nb_imgs>0:
 
-    for i, file in enumerate(imgs):
-        frame_time = now + timedelta(seconds=dt * i)
-        frame_name = (
-            frame_time.isoformat().split(".")[0].replace("-", "_").replace(":", "_")
-        )
-        new_file = os.path.join(source_path, f"{frame_name}.jpg")
-        shutil.move(file, new_file)
-    signal.alarm(0)
-    # except:
-    #     print(f"timeout {source}")
+            dt = 6 * 60 * 60 / nb_imgs
+
+            for i, file in enumerate(imgs):
+                frame_time = now + timedelta(seconds=dt * i)
+                frame_name = (
+                    frame_time.isoformat().split(".")[0].replace("-", "_").replace(":", "_")
+                )
+                new_file = os.path.join(source_path, f"{frame_name}.jpg")
+                shutil.move(file, new_file)
+        signal.alarm(0)
+    except:
+        print(f"timeout {source}")
 
 
 # CLEAN
