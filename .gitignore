@@ -2,3 +2,5 @@
 runs/
 *.ipynb
 *.pt
+done
+*.zip
