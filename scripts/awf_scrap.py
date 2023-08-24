@@ -110,7 +110,7 @@ def remove_if_gray(file):
 
 imgs = glob.glob(OUTPUT_PATH + "/**/*.jpg")
 
-with multiprocessing.Pool(processes=4) as pool:
+with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1) as pool:
     results = tqdm(pool.imap(remove_if_gray, imgs), total=len(imgs))
     tuple(results)
 
