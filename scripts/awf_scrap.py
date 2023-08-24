@@ -99,12 +99,11 @@ def remove_if_gray(file):
     
         im = cv2.imread(file)
         h = im.shape[0]
-        im2 = im[h // 2 :, :, :]
-        d = np.max(im2[:, :, 0] - im2[:, :, 1])
+        im_half = im[h // 2 :, :, :]
+        d = np.max(im_half[:, :, 0] - im_half[:, :, 1])
         if d == 0:
             os.remove(file)
-
-        cv2.imwrite(file, im2)
+        cv2.imwrite(file, im)
     except:
         pass
 
