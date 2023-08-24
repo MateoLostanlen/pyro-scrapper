@@ -18,7 +18,7 @@ import subprocess
 now = datetime.now()
 
 DURATION = "6h"  # options: 15m, 1h, 3h, 6h, 12h
-OUTPUT_PATH = "/media/mateo/EXTERNAL_US/dl_frames/" + now.isoformat().split(".")[0].replace("-", "_").replace(
+OUTPUT_PATH = "/hdd/dl_frames/" + now.isoformat().split(".")[0].replace("-", "_").replace(
     ":", "_"
 )
 CAMERAS_URL = (
