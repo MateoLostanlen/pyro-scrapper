@@ -18,7 +18,7 @@ import subprocess
 now = datetime.now()
 
 DURATION = "6h"  # options: 15m, 1h, 3h, 6h, 12h
-OUTPUT_PATH = "/hdd/dl_frames/" + now.isoformat().split(".")[0].replace("-", "_").replace(
+OUTPUT_PATH = "/media/mateo/EXTERNAL_US/dl_frames/" + now.isoformat().split(".")[0].replace("-", "_").replace(
     ":", "_"
 )
 CAMERAS_URL = (
@@ -88,31 +88,39 @@ for source in tqdm(cameras_ids):
         print(f"timeout {source}")
 
 
+# OUTPUT_PATH = "/media/mateo/EXTERNAL_US/dl_frames/2023_08_24T11_55_37"
+
+
 # CLEAN
 ## drop night images
 def remove_if_gray(file):
-    im = cv2.imread(file)
-    h = im.shape[0]
-    im = im[h // 2 :, :, :]
-    d = np.max(im[:, :, 0] - im[:, :, 1])
-    if d == 0:
-        os.remove(file)
 
-    cv2.imwrite(file, im)
+    try:
+    
+        im = cv2.imread(file)
+        h = im.shape[0]
+        im2 = im[h // 2 :, :, :]
+        d = np.max(im2[:, :, 0] - im2[:, :, 1])
+        if d == 0:
+            os.remove(file)
+
+        cv2.imwrite(file, im2)
+    except:
+        pass
 
 
 imgs = glob.glob(OUTPUT_PATH + "/**/*.jpg")
 
-with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1) as pool:
+with multiprocessing.Pool(processes=4) as pool:
     results = tqdm(pool.imap(remove_if_gray, imgs), total=len(imgs))
     tuple(results)
 
 
-
+scrap_folders = glob.glob(OUTPUT_PATH + "/*")
 ## clean empty folders
 
 for scrap_folder in tqdm(scrap_folders):
     if len(glob.glob(scrap_folder + "/*")) == 0:
         shutil.rmtree(scrap_folder)
-        name = scrap_folder.split("/")[-2] + "_" + scrap_folder.split("/")[-1]
-        shutil.rmtree(f"runs/detect/{name}/labels/")
+        # name = scrap_folder.split("/")[-2] + "_" + scrap_folder.split("/")[-1]
+        # shutil.rmtree(f"runs/detect/{name}/labels/")
