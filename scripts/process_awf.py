@@ -8,7 +8,7 @@ import subprocess
 
 
 OUTPUT_PATH = "/media/mateo/EXTERNAL_US/dl_frames"
-DONE_folder = "/home/mateo/pyronear/dataset/scrapping/pyro-scrapper/done_half_img"
+DONE_folder = "/home/mateo/pyronear/dataset/scrapping/pyro-scrapper/done"
 
 
 neighbour_mode = "idx"
@@ -24,7 +24,7 @@ for scrap_folder in tqdm(scrap_folders):
     try:
         name = scrap_folder.split("/")[-2] + "_" + scrap_folder.split("/")[-1]
 
-        cmd = f"yolo predict model={weight} conf=0.3 source={scrap_folder} save=False save_txt save_conf name={name}"
+        cmd = f"yolo predict model={weight} conf=0.2 source={scrap_folder} save=False save_txt save_conf name={name}"
         print(f"* Command:\n{cmd}")
         subprocess.call(cmd, shell=True)
 
