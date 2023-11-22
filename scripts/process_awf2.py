@@ -96,8 +96,8 @@ def process(scrap_folder):
 
 nb_proc = multiprocessing.cpu_count() - 1
 
-if nb_proc > 4:
-    nb_proc = 4
+if nb_proc > 1:
+    nb_proc = 1
 
 with multiprocessing.Pool(processes=nb_proc) as pool:
     results = tqdm(pool.imap(process, scrap_folders), total=len(scrap_folders))

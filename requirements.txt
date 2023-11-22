@@ -1,4 +1,5 @@
+ultralytics
+git+https://github.com/pyronear/pyro-engine@gpu_inference
 opencv-python
 tqdm
 requests
-ultralytics

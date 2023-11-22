@@ -18,9 +18,9 @@ import subprocess
 now = datetime.now()
 
 DURATION = "6h"  # options: 15m, 1h, 3h, 6h, 12h
-OUTPUT_PATH = "/hdd/dl_frames/" + now.isoformat().split(".")[0].replace("-", "_").replace(
-    ":", "_"
-)
+OUTPUT_PATH = "/media/mateo/T7/dl_frames/" + now.isoformat().split(".")[0].replace(
+    "-", "_"
+).replace(":", "_")
 CAMERAS_URL = (
     "https://s3-us-west-2.amazonaws.com/alertwildfire-data-public/all_cameras-v2.json"
 )
@@ -72,14 +72,16 @@ for source in tqdm(cameras_ids):
         imgs.sort()
         nb_imgs = len(imgs)
 
-        if nb_imgs>0:
-
+        if nb_imgs > 0:
             dt = 6 * 60 * 60 / nb_imgs
 
             for i, file in enumerate(imgs):
                 frame_time = now + timedelta(seconds=dt * i)
                 frame_name = (
-                    frame_time.isoformat().split(".")[0].replace("-", "_").replace(":", "_")
+                    frame_time.isoformat()
+                    .split(".")[0]
+                    .replace("-", "_")
+                    .replace(":", "_")
                 )
                 new_file = os.path.join(source_path, f"{frame_name}.jpg")
                 shutil.move(file, new_file)
@@ -88,29 +90,44 @@ for source in tqdm(cameras_ids):
         print(f"timeout {source}")
 
 
-# OUTPUT_PATH = "/media/mateo/EXTERNAL_US/dl_frames/2023_08_24T11_55_37"
+# Rewrite
+def rewrite(file):
+    try:
+        im = cv2.imread(file)
+        cv2.imwrite(file, im)
+    except:
+        os.remove(file)
+
+
+imgs = glob.glob(OUTPUT_PATH + "/**/*.jpg")
+
+nb_proc = multiprocessing.cpu_count() - 1
+
+if nb_proc > 8:
+    nb_proc = 8
+
+with multiprocessing.Pool(processes=nb_proc) as pool:
+    results = tqdm(pool.imap(rewrite, imgs), total=len(imgs))
+    tuple(results)
 
 
 # CLEAN
 ## drop night images
 def remove_if_gray(file):
-
     try:
-    
         im = cv2.imread(file)
         h = im.shape[0]
         im_half = im[h // 2 :, :, :]
         d = np.max(im_half[:, :, 0] - im_half[:, :, 1])
         if d == 0:
             os.remove(file)
-        cv2.imwrite(file, im)
     except:
-        pass
+        os.remove(file)
 
 
 imgs = glob.glob(OUTPUT_PATH + "/**/*.jpg")
 
-with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1) as pool:
+with multiprocessing.Pool(processes=nb_proc) as pool:
     results = tqdm(pool.imap(remove_if_gray, imgs), total=len(imgs))
     tuple(results)
 
