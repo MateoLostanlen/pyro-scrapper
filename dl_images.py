@@ -10,10 +10,11 @@ import numpy as np
 import shutil
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import pytz
 
 # Load configurations from .env file
 load_dotenv()
-OUTPUT_BASE_PATH = os.getenv("OUTPUT_PATH", "AWF_scrap/dl_frames")
+OUTPUT_BASE_PATH = os.getenv("OUTPUT_PATH", "AWF_scrap")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +31,19 @@ HEADERS = {
     "Sec-Fetch-Dest": "empty",
     "Referer": "https://www.alertwildfire.org/",
     "Host": "s3-us-west-2.amazonaws.com",
+}
+
+STATE_TIMEZONES = {
+    'AZ': 'America/Phoenix',       # Arizona
+    'CA': 'America/Los_Angeles',   # California
+    'CO': 'America/Denver',        # Colorado
+    'ID': 'America/Boise',         # Idaho
+    'MT': 'America/Denver',        # Montana
+    'NV': 'America/Los_Angeles',   # Nevada
+    'Nevada': 'America/Los_Angeles', # Alternate name for Nevada
+    'OR': 'America/Los_Angeles',   # Oregon
+    'WA': 'America/Los_Angeles'    # Washington
+    # Add other states and their timezones here
 }
 MAX_TIME = 100
 
@@ -54,19 +68,6 @@ def duration_to_seconds(duration_str):
         raise ValueError("Invalid duration string format")
 
 
-# Helper Functions
-def get_output_path():
-    """
-    Generates a path for saving output based on the current date and time.
-
-    Returns:
-        str: A string representing the path where output should be saved, incorporating the current date and time.
-    """
-
-    now = datetime.now()
-    return os.path.join(OUTPUT_BASE_PATH, now.strftime("%Y_%m_%dT%H_%M_%S"))
-
-
 def generate_chunks(response):
     """
     Splits the response content into chunks based on a specific delimiter.
@@ -84,25 +85,40 @@ def generate_chunks(response):
             start = chunk.find(b"\xff\xd8")
             yield chunk[start:]
 
+def get_camera_local_time(state):
+    """
+    Get the local time for a given state.
 
-def download_and_process_camera(source, output_path):
+    Args:
+        state (str): The state for which to find the local time.
+
+    Returns:
+        datetime: The current local time for the given state.
+    """
+    timezone_str = STATE_TIMEZONES.get(state, 'America/Phoenix')  # Default to America/Phoenix if state not found
+    timezone = pytz.timezone(timezone_str)
+    return datetime.now(timezone)
+
+
+def download_and_process_camera(cam_properties):
     try:
-        source_path = os.path.join(output_path, source)
-        os.makedirs(source_path, exist_ok=True)
+        state = cam_properties.get("state")
+        source = cam_properties.get("id").lower()
+        
         url = f"https://ts1.alertwildfire.org/text/timelapse/?source={source}&preset={DURATION}"
         response = requests.get(url, headers=HEADERS, timeout=MAX_TIME)
-        process_camera_images(response, source_path)
+        process_camera_images(response, state, source)
     except requests.exceptions.Timeout:
         logging.error(f"Timeout processing {source}")
     except Exception as e:
         logging.error(f"Error processing {source}: {e}")
 
 # Modify the download_and_process_images function
-def download_and_process_images(cameras_ids, output_path):
-    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor, tqdm(total=len(cameras_ids)) as pbar:
+def download_and_process_images(cameras_features):
+    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor, tqdm(total=len(cameras_features)) as pbar:
         futures = []
-        for source in cameras_ids:
-            futures.append(executor.submit(download_and_process_camera, source, output_path))
+        for cameras_feature in cameras_features:
+            futures.append(executor.submit(download_and_process_camera, cameras_feature["properties"]))
         for future in as_completed(futures):
             result = future.result()
             pbar.update(1)
@@ -111,7 +127,7 @@ def download_and_process_images(cameras_ids, output_path):
 
 
 
-def process_camera_images(response, source_path):
+def process_camera_images(response, state, source):
     """
     Processes camera images from an HTTP response and saves them to a specified path.
 
@@ -123,6 +139,11 @@ def process_camera_images(response, source_path):
         An error message if any exception occurs during the processing.
     """
 
+    local_time = get_camera_local_time(state)
+    output_path = os.path.join(OUTPUT_BASE_PATH, "temp", local_time.strftime("%Y_%m_%d"))
+    source_path = os.path.join(output_path, source)
+    os.makedirs(source_path, exist_ok=True)
+
     try:
         for i, chunk in enumerate(generate_chunks(response)):
             output_path = os.path.join(source_path, f"{str(i).zfill(8)}.jpg")
@@ -130,12 +151,12 @@ def process_camera_images(response, source_path):
                 f.write(chunk)
 
         # Sort and rename images
-        sort_and_rename_images(source_path)
+        sort_and_rename_images(source_path, local_time)
     except Exception as e:
         logging.error(f"Error in processing images for {source_path}: {e}")
 
 
-def sort_and_rename_images(source_path):
+def sort_and_rename_images(source_path, local_time):
     """
     Sorts and renames images in a given directory based on a time calculation.
 
@@ -153,9 +174,10 @@ def sort_and_rename_images(source_path):
 
         if nb_imgs > 0:
             dt = duration_to_seconds(DURATION) / nb_imgs  # Total duration divided by the number of images
+            local_time = local_time - timedelta(hours=duration_to_seconds(DURATION)/3600)
 
             for i, file in enumerate(imgs):
-                frame_time = datetime.now() + timedelta(seconds=dt * i)
+                frame_time = local_time + timedelta(seconds=dt * i)
                 frame_name = frame_time.strftime("%Y_%m_%dT%H_%M_%S") + ".jpg"
                 new_file = os.path.join(source_path, frame_name)
                 shutil.move(file, new_file)
@@ -186,19 +208,17 @@ def remove_if_gray(file):
         os.remove(file)
 
 
-def remove_grayscale_images(output_path):
+def remove_grayscale_images():
     """
-    Removes grayscale images from a specified directory using multiprocessing.
-
-    Args:
-        output_path (str): The base path where the images are stored.
+    Removes grayscale images from a temp directory using multiprocessing.
 
     Logs:
         An error message if any exception occurs during the removal process.
     """
 
     try:
-        imgs = glob.glob(os.path.join(output_path, "**/*.jpg"), recursive=True)
+        temp_dir = os.path.join(OUTPUT_BASE_PATH, "temp")
+        imgs = glob.glob(os.path.join(temp_dir, "**/*.jpg"), recursive=True)
         nb_proc = multiprocessing.cpu_count() - 1
         with multiprocessing.Pool(processes=nb_proc) as pool:
             list(tqdm(pool.imap(remove_if_gray, imgs), total=len(imgs)))
@@ -206,42 +226,72 @@ def remove_grayscale_images(output_path):
         logging.error(f"Error in removing grayscale images: {e}")
 
 
-def cleanup_empty_folders(output_path):
+def cleanup_empty_folders():
     """
-    Removes empty folders in a specified directory.
-
-    Args:
-        output_path (str): The base path where the folders are located.
+    Removes empty folders in temp directory.
 
     Logs:
         An error message if any exception occurs during the cleanup process.
     """
 
     try:
-        scrap_folders = glob.glob(os.path.join(output_path, "*"))
-        for scrap_folder in tqdm(scrap_folders):
+        temp_dir = os.path.join(OUTPUT_BASE_PATH, "temp")
+        scrap_folders = glob.glob(os.path.join(temp_dir, "*"))
+        for scrap_folder in tqdm(scrap_folders, desc="Clean empty folders"):
             if not os.listdir(scrap_folder):
                 shutil.rmtree(scrap_folder)
     except Exception as e:
         logging.error(f"Error cleaning up empty folders: {e}")
 
+def merge_folders(src, dst):
+    """
+    Merge two folders. If a file in the source folder already exists in the destination folder, 
+    it will be overwritten.
+
+    Args:
+        src (str): The path to the source folder.
+        dst (str): The path to the destination folder.
+    """
+    if not os.path.exists(dst):
+        shutil.move(src, dst)
+    else:
+        for src_dir, dirs, files in os.walk(src):
+            dst_dir = src_dir.replace(src, dst, 1)
+            if not os.path.exists(dst_dir):
+                os.makedirs(dst_dir)
+            for file_ in files:
+                src_file = os.path.join(src_dir, file_)
+                dst_file = os.path.join(dst_dir, file_)
+                if os.path.exists(dst_file):
+                    os.remove(dst_file)
+                shutil.move(src_file, dst_dir)
+        os.rmdir(src)  # Optionally remove the source directory after merge
+
+
+def move_processed_directory():
+
+    temp_dir = os.path.join(OUTPUT_BASE_PATH, "temp")
+    scrap_folders = glob.glob(os.path.join(temp_dir, "**/*"))
+    for folder in tqdm(scrap_folders, desc="Move processed directory"):
+        merge_folders(folder, folder.replace("temp", "dl_frames"))
+
 
 # Main Script
 if __name__ == "__main__":
-    output_path = get_output_path()
-    os.makedirs(output_path, exist_ok=True)
 
     try:
         response = requests.get(CAMERAS_URL, headers=HEADERS)
         cameras_data = response.json()
-        cameras_ids = [
-            cam["properties"]["id"].lower() for cam in cameras_data["features"]
-        ]
-        download_and_process_images(cameras_ids, output_path)
+
+        download_and_process_images(cameras_data["features"][:10])
         # Remove grayscale images
-        remove_grayscale_images(output_path)
+        remove_grayscale_images()
 
         # Cleanup empty folders
-        cleanup_empty_folders(output_path)
+        cleanup_empty_folders()
+
+        # Move processed folders
+        move_processed_directory()
+
     except Exception as e:
         logging.error(f"Failed to fetch camera data: {e}")
