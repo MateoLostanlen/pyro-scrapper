@@ -318,7 +318,7 @@ if __name__ == "__main__":
         response = requests.get(CAMERAS_URL, headers=HEADERS)
         cameras_data = response.json()
 
-        download_and_process_images(cameras_data["features"][:10])
+        download_and_process_images(cameras_data["features"])
         # Remove grayscale images
         remove_grayscale_images()
 
