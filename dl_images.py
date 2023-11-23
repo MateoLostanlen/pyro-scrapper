@@ -56,6 +56,9 @@ def duration_to_seconds(duration_str):
 
     Returns:
         int: The number of seconds equivalent to the duration string.
+    
+    Raises:
+        ValueError: If the duration string format is invalid.
     """
     duration_str = duration_str.lower()
     if duration_str.endswith("h"):
@@ -70,13 +73,13 @@ def duration_to_seconds(duration_str):
 
 def generate_chunks(response):
     """
-    Splits the response content into chunks based on a specific delimiter.
+    Splits the response content into chunks based on a specific delimiter. Each chunk represents a frame or segment.
 
     Args:
         response (requests.Response): The HTTP response containing the content to be split.
 
     Yields:
-        bytes: A chunk of the response content, each representing a frame or segment.
+        bytes: A chunk of the response content.
     """
 
     chunks = response.content.split(b"--frame\r\n")
@@ -87,7 +90,7 @@ def generate_chunks(response):
 
 def get_camera_local_time(state):
     """
-    Get the local time for a given state.
+    Get the local time for a given state using the specified state's timezone.
 
     Args:
         state (str): The state for which to find the local time.
@@ -101,6 +104,12 @@ def get_camera_local_time(state):
 
 
 def download_and_process_camera(cam_properties):
+    """
+    Download and process camera images based on the camera properties. Handles errors such as timeouts.
+
+    Args:
+        cam_properties (dict): A dictionary containing properties of a camera, including its state and ID.
+    """
     try:
         state = cam_properties.get("state")
         source = cam_properties.get("id").lower()
@@ -115,6 +124,12 @@ def download_and_process_camera(cam_properties):
 
 # Modify the download_and_process_images function
 def download_and_process_images(cameras_features):
+    """
+    Download and process images for a list of cameras concurrently.
+
+    Args:
+        cameras_features (list): A list of camera features, each containing camera properties.
+    """
     with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor, tqdm(total=len(cameras_features)) as pbar:
         futures = []
         for cameras_feature in cameras_features:
@@ -129,14 +144,16 @@ def download_and_process_images(cameras_features):
 
 def process_camera_images(response, state, source):
     """
-    Processes camera images from an HTTP response and saves them to a specified path.
+    Process and save camera images from an HTTP response into a specified path, 
+    based on the camera's state and source information.
 
     Args:
         response (requests.Response): The HTTP response containing the camera images.
-        source_path (str): The path where the images should be saved.
+        state (str): The state of the camera.
+        source (str): The camera source identifier.
 
     Logs:
-        An error message if any exception occurs during the processing.
+        Error messages if any exception occurs during the processing.
     """
 
     local_time = get_camera_local_time(state)
@@ -158,13 +175,14 @@ def process_camera_images(response, state, source):
 
 def sort_and_rename_images(source_path, local_time):
     """
-    Sorts and renames images in a given directory based on a time calculation.
+    Sort and rename images in a directory based on their timestamps relative to the local time.
 
     Args:
-        source_path (str): The path of the directory containing the images.
+        source_path (str): The directory containing the images.
+        local_time (datetime): The local time of the camera when the first image was captured.
 
     Logs:
-        An error message if any exception occurs during the sorting and renaming process.
+        Error messages if any exception occurs during the sorting and renaming process.
     """
 
     try:
@@ -187,13 +205,13 @@ def sort_and_rename_images(source_path, local_time):
 
 def remove_if_gray(file):
     """
-    Removes an image file if it is determined to be grayscale.
+    Remove an image file if it is determined to be grayscale.
 
     Args:
         file (str): The path to the image file.
 
     Logs:
-        An error message if any exception occurs, and the file is removed in such cases.
+        Error messages if any exception occurs. The file is removed in case of exceptions.
     """
 
     try:
@@ -210,12 +228,11 @@ def remove_if_gray(file):
 
 def remove_grayscale_images():
     """
-    Removes grayscale images from a temp directory using multiprocessing.
+    Remove grayscale images from the temporary directory using multiprocessing.
 
     Logs:
-        An error message if any exception occurs during the removal process.
+        Error messages if any exception occurs during the removal process.
     """
-
     try:
         temp_dir = os.path.join(OUTPUT_BASE_PATH, "temp")
         imgs = glob.glob(os.path.join(temp_dir, "**/*.jpg"), recursive=True)
@@ -228,10 +245,10 @@ def remove_grayscale_images():
 
 def cleanup_empty_folders():
     """
-    Removes empty folders in temp directory.
+    Remove empty folders within the temporary directory.
 
     Logs:
-        An error message if any exception occurs during the cleanup process.
+        Error messages if any exception occurs during the cleanup process.
     """
 
     try:
@@ -245,8 +262,7 @@ def cleanup_empty_folders():
 
 def merge_folders(src, dst):
     """
-    Merge two folders. If a file in the source folder already exists in the destination folder, 
-    it will be overwritten.
+    Merge two folders, overwriting files in the destination folder if they already exist.
 
     Args:
         src (str): The path to the source folder.
@@ -269,6 +285,9 @@ def merge_folders(src, dst):
 
 
 def move_processed_directory():
+    """
+    Move processed directories from a temporary location to the final destination, merging folders as needed.
+    """
 
     temp_dir = os.path.join(OUTPUT_BASE_PATH, "temp")
     scrap_folders = glob.glob(os.path.join(temp_dir, "**/*"))
