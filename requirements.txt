@@ -1,4 +1,7 @@
-opencv-python
-tqdm
-requests
-ultralytics
+ultralytics==8.0.16
+git+https://github.com/pyronear/pyro-engine@gpu_inference
+opencv-python==4.5.5.64
+tqdm==4.66.1
+requests==2.31.0
+python-dotenv==1.0.0
+python-doctr[torch]
