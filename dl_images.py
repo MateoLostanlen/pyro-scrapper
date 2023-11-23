@@ -34,18 +34,19 @@ HEADERS = {
 }
 
 STATE_TIMEZONES = {
-    'AZ': 'America/Phoenix',       # Arizona
-    'CA': 'America/Los_Angeles',   # California
-    'CO': 'America/Denver',        # Colorado
-    'ID': 'America/Boise',         # Idaho
-    'MT': 'America/Denver',        # Montana
-    'NV': 'America/Los_Angeles',   # Nevada
-    'Nevada': 'America/Los_Angeles', # Alternate name for Nevada
-    'OR': 'America/Los_Angeles',   # Oregon
-    'WA': 'America/Los_Angeles'    # Washington
+    "AZ": "America/Phoenix",  # Arizona
+    "CA": "America/Los_Angeles",  # California
+    "CO": "America/Denver",  # Colorado
+    "ID": "America/Boise",  # Idaho
+    "MT": "America/Denver",  # Montana
+    "NV": "America/Los_Angeles",  # Nevada
+    "Nevada": "America/Los_Angeles",  # Alternate name for Nevada
+    "OR": "America/Los_Angeles",  # Oregon
+    "WA": "America/Los_Angeles"  # Washington
     # Add other states and their timezones here
 }
 MAX_TIME = 100
+
 
 def duration_to_seconds(duration_str):
     """
@@ -56,7 +57,7 @@ def duration_to_seconds(duration_str):
 
     Returns:
         int: The number of seconds equivalent to the duration string.
-    
+
     Raises:
         ValueError: If the duration string format is invalid.
     """
@@ -88,6 +89,7 @@ def generate_chunks(response):
             start = chunk.find(b"\xff\xd8")
             yield chunk[start:]
 
+
 def get_camera_local_time(state):
     """
     Get the local time for a given state using the specified state's timezone.
@@ -98,7 +100,9 @@ def get_camera_local_time(state):
     Returns:
         datetime: The current local time for the given state.
     """
-    timezone_str = STATE_TIMEZONES.get(state, 'America/Phoenix')  # Default to America/Phoenix if state not found
+    timezone_str = STATE_TIMEZONES.get(
+        state, "America/Phoenix"
+    )  # Default to America/Phoenix if state not found
     timezone = pytz.timezone(timezone_str)
     return datetime.now(timezone)
 
@@ -113,7 +117,7 @@ def download_and_process_camera(cam_properties):
     try:
         state = cam_properties.get("state")
         source = cam_properties.get("id").lower()
-        
+
         url = f"https://ts1.alertwildfire.org/text/timelapse/?source={source}&preset={DURATION}"
         response = requests.get(url, headers=HEADERS, timeout=MAX_TIME)
         process_camera_images(response, state, source)
@@ -121,6 +125,7 @@ def download_and_process_camera(cam_properties):
         logging.error(f"Timeout processing {source}")
     except Exception as e:
         logging.error(f"Error processing {source}: {e}")
+
 
 # Modify the download_and_process_images function
 def download_and_process_images(cameras_features):
@@ -130,10 +135,16 @@ def download_and_process_images(cameras_features):
     Args:
         cameras_features (list): A list of camera features, each containing camera properties.
     """
-    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor, tqdm(total=len(cameras_features)) as pbar:
+    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor, tqdm(
+        total=len(cameras_features)
+    ) as pbar:
         futures = []
         for cameras_feature in cameras_features:
-            futures.append(executor.submit(download_and_process_camera, cameras_feature["properties"]))
+            futures.append(
+                executor.submit(
+                    download_and_process_camera, cameras_feature["properties"]
+                )
+            )
         for future in as_completed(futures):
             result = future.result()
             pbar.update(1)
@@ -141,10 +152,9 @@ def download_and_process_images(cameras_features):
                 logging.error(result)
 
 
-
 def process_camera_images(response, state, source):
     """
-    Process and save camera images from an HTTP response into a specified path, 
+    Process and save camera images from an HTTP response into a specified path,
     based on the camera's state and source information.
 
     Args:
@@ -157,7 +167,9 @@ def process_camera_images(response, state, source):
     """
 
     local_time = get_camera_local_time(state)
-    output_path = os.path.join(OUTPUT_BASE_PATH, "temp", local_time.strftime("%Y_%m_%d"))
+    output_path = os.path.join(
+        OUTPUT_BASE_PATH, "temp", local_time.strftime("%Y_%m_%d")
+    )
     source_path = os.path.join(output_path, source)
     os.makedirs(source_path, exist_ok=True)
 
@@ -191,8 +203,12 @@ def sort_and_rename_images(source_path, local_time):
         nb_imgs = len(imgs)
 
         if nb_imgs > 0:
-            dt = duration_to_seconds(DURATION) / nb_imgs  # Total duration divided by the number of images
-            local_time = local_time - timedelta(hours=duration_to_seconds(DURATION)/3600)
+            dt = (
+                duration_to_seconds(DURATION) / nb_imgs
+            )  # Total duration divided by the number of images
+            local_time = local_time - timedelta(
+                hours=duration_to_seconds(DURATION) / 3600
+            )
 
             for i, file in enumerate(imgs):
                 frame_time = local_time + timedelta(seconds=dt * i)
@@ -260,6 +276,7 @@ def cleanup_empty_folders():
     except Exception as e:
         logging.error(f"Error cleaning up empty folders: {e}")
 
+
 def merge_folders(src, dst):
     """
     Merge two folders, overwriting files in the destination folder if they already exist.
@@ -297,7 +314,6 @@ def move_processed_directory():
 
 # Main Script
 if __name__ == "__main__":
-
     try:
         response = requests.get(CAMERAS_URL, headers=HEADERS)
         cameras_data = response.json()
