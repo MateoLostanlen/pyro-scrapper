@@ -2,7 +2,6 @@ import os
 import requests
 import logging
 from datetime import datetime, timedelta
-import signal
 from tqdm import tqdm
 import multiprocessing
 import glob
@@ -10,6 +9,7 @@ import cv2
 import numpy as np
 import shutil
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Load configurations from .env file
 load_dotenv()
@@ -19,7 +19,7 @@ OUTPUT_BASE_PATH = os.getenv("OUTPUT_PATH", "AWF_scrap/dl_frames")
 logging.basicConfig(level=logging.INFO)
 
 # Constants
-DURATION = "6h"
+DURATION = "12h"
 CAMERAS_URL = (
     "https://s3-us-west-2.amazonaws.com/alertwildfire-data-public/all_cameras-v2.json"
 )
@@ -32,6 +32,26 @@ HEADERS = {
     "Host": "s3-us-west-2.amazonaws.com",
 }
 MAX_TIME = 100
+
+def duration_to_seconds(duration_str):
+    """
+    Convert a duration string to the equivalent number of seconds.
+
+    Args:
+        duration_str (str): A duration string in the format "Xh" (X hours) or "Xmn" (X minutes).
+
+    Returns:
+        int: The number of seconds equivalent to the duration string.
+    """
+    duration_str = duration_str.lower()
+    if duration_str.endswith("h"):
+        hours = int(duration_str[:-1])
+        return hours * 60 * 60
+    elif duration_str.endswith("mn"):
+        minutes = int(duration_str[:-2])
+        return minutes * 60
+    else:
+        raise ValueError("Invalid duration string format")
 
 
 # Helper Functions
@@ -65,45 +85,30 @@ def generate_chunks(response):
             yield chunk[start:]
 
 
-def handler(signum, frame):
-    """
-    A signal handler function that raises an exception for timeouts.
+def download_and_process_camera(source, output_path):
+    try:
+        source_path = os.path.join(output_path, source)
+        os.makedirs(source_path, exist_ok=True)
+        url = f"https://ts1.alertwildfire.org/text/timelapse/?source={source}&preset={DURATION}"
+        response = requests.get(url, headers=HEADERS, timeout=MAX_TIME)
+        process_camera_images(response, source_path)
+    except requests.exceptions.Timeout:
+        logging.error(f"Timeout processing {source}")
+    except Exception as e:
+        logging.error(f"Error processing {source}: {e}")
 
-    Args:
-        signum (int): The signal number.
-        frame (frame object): The current stack frame.
-
-    Raises:
-        Exception: Custom exception indicating a timeout event.
-    """
-
-    raise Exception("Analyze stream timeout")
-
-
+# Modify the download_and_process_images function
 def download_and_process_images(cameras_ids, output_path):
-    """
-    Downloads and processes images from camera sources.
+    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor, tqdm(total=len(cameras_ids)) as pbar:
+        futures = []
+        for source in cameras_ids:
+            futures.append(executor.submit(download_and_process_camera, source, output_path))
+        for future in as_completed(futures):
+            result = future.result()
+            pbar.update(1)
+            if result:
+                logging.error(result)
 
-    Args:
-        cameras_ids (list): A list of camera IDs to download images from.
-        output_path (str): The base path where the images will be saved.
-
-    Logs:
-        An error message if any exception occurs during the processing of a camera source.
-    """
-
-    for source in tqdm(cameras_ids):
-        try:
-            signal.signal(signal.SIGALRM, handler)
-            signal.alarm(MAX_TIME)
-            source_path = os.path.join(output_path, source)
-            os.makedirs(source_path, exist_ok=True)
-            url = f"https://ts1.alertwildfire.org/text/timelapse/?source={source}&preset={DURATION}"
-            response = requests.get(url, headers=HEADERS)
-            process_camera_images(response, source_path)
-            signal.alarm(0)
-        except Exception as e:
-            logging.error(f"Error processing {source}: {e}")
 
 
 def process_camera_images(response, source_path):
@@ -147,7 +152,7 @@ def sort_and_rename_images(source_path):
         nb_imgs = len(imgs)
 
         if nb_imgs > 0:
-            dt = 6 * 60 * 60 / nb_imgs  # Total duration divided by the number of images
+            dt = duration_to_seconds(DURATION) / nb_imgs  # Total duration divided by the number of images
 
             for i, file in enumerate(imgs):
                 frame_time = datetime.now() + timedelta(seconds=dt * i)
