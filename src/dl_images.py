@@ -20,7 +20,7 @@ OUTPUT_BASE_PATH = os.getenv("OUTPUT_PATH", "AWF_scrap")
 logging.basicConfig(level=logging.INFO)
 
 # Constants
-DURATION = "12h"
+DURATION = "6h"
 CAMERAS_URL = (
     "https://s3-us-west-2.amazonaws.com/alertwildfire-data-public/all_cameras-v2.json"
 )
