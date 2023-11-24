@@ -269,7 +269,7 @@ def cleanup_empty_folders():
 
     try:
         temp_dir = os.path.join(OUTPUT_BASE_PATH, "temp")
-        scrap_folders = glob.glob(os.path.join(temp_dir, "*"))
+        scrap_folders = glob.glob(os.path.join(temp_dir, "**/*"))
         for scrap_folder in tqdm(scrap_folders, desc="Clean empty folders"):
             if not os.listdir(scrap_folder):
                 shutil.rmtree(scrap_folder)
