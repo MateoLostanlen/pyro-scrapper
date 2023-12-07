@@ -1,11 +1,11 @@
-version: '3.10'
+version: '3.6'
 
 services:
   pyro-scrapper:
     image: pyronear/pyro-scrapper:latest
     command: sleep infinity
     volumes:
-      - /media/mateo/T7/AWF_scrap:/usr/src/app/AWF_scrap
+      - /mnt/T7/AWF_scrap:/usr/src/app/AWF_scrap
     restart: always
     deploy:
       resources:

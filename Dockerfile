@@ -1,4 +1,5 @@
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
+FROM nvcr.io/nvidia/l4t-ml:r32.7.1-py3
+
 
 # set environment variables
 ENV PYTHONPATH "${PYTHONPATH}:/usr/src/app"
@@ -14,19 +15,18 @@ WORKDIR /usr/src/app
 # install git
 RUN apt-get update && apt-get install git -y
 
-COPY ./requirements.txt /tmp/requirements.txt
-RUN apt-get update && apt-get install -y \
-    git \
-    ffmpeg \
-    libsm6 \
-    libxext6 \
+RUN apt-get install -y \
     python3-pip && \
-    pip install --upgrade pip setuptools wheel && \
-    pip install -r /tmp/requirements.txt && \
-    pip cache purge && \
-    rm -rf /root/.cache/pip /var/lib/apt/lists/*
+    pip3 install --upgrade pip setuptools wheel 
 
 
+
+RUN pip3 install protobuf==3.19.1
+RUN wget https://nvidia.box.com/shared/static/pmsqsiaw4pg9qrbeckcbymho6c01jj4z.whl -O onnxruntime_gpu-1.11.0-cp36-cp36m-linux_aarch64.whl
+RUN pip3 install onnxruntime_gpu-1.11.0-cp36-cp36m-linux_aarch64.whl
+
+RUN pip3 install python-dotenv
+RUN pip3 install tqdm
+RUN pip3 install requests
 
 COPY ./src/dl_images.py /usr/src/app/dl_images.py
-COPY ./src/split_cams.py /usr/src/app/split_cams.py
