@@ -119,3 +119,8 @@ pyroengine/version.py
 *.onnx
 # Release
 conda-dist/
+
+#project
+AWF_scrap*
+*.jpg
+*.pt
