@@ -11,19 +11,3 @@ style:
 	isort .
 	black .
 
-# Build the docker
-docker:
-	docker build . -t pyronear/pyro-scrapper:python3.10.13-slim
-
-# Run the scrapper wrapper
-run:
-	docker build . -t pyronear/pyro-scrapper:latest
-	docker compose up -d
-
-# Get log from scrapper wrapper
-log: 
-	docker logs -f --tail 50 pyro-scrapper_pyro-scrapper_1
-
-# Stop the scrapper wrapper
-stop:
-	docker compose down
