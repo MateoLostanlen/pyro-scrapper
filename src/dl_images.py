@@ -245,7 +245,7 @@ def remove_if_gray(file):
 
 def remove_grayscale_images():
     """
-    Remove grayscale images from the temporary directory using multiprocessing.
+    Remove grayscale images from the temporary directory using threading.
 
     Logs:
         Error messages if any exception occurs during the removal process.
@@ -253,9 +253,9 @@ def remove_grayscale_images():
     try:
         temp_dir = os.path.join(OUTPUT_BASE_PATH, "temp")
         imgs = glob.glob(os.path.join(temp_dir, "**/*.jpg"), recursive=True)
-        nb_proc = multiprocessing.cpu_count() - 1
-        with multiprocessing.Pool(processes=nb_proc) as pool:
-            list(tqdm(pool.imap(remove_if_gray, imgs), total=len(imgs)))
+        with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+            # Wrap with tqdm for progress feedback
+            results = list(tqdm(executor.map(remove_if_gray, imgs), total=len(imgs)))
     except Exception as e:
         logging.error(f"Error in removing grayscale images: {e}")
 
