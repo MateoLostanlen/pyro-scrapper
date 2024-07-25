@@ -1,133 +1,70 @@
 import glob
-import multiprocessing
 import os
-import re
 import shutil
-import subprocess
-import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from functools import partial  # Make sure to import partial
-from multiprocessing import Manager, Pool
 
+import numpy as np
 from tqdm import tqdm
+from ultralytics import YOLO
+from dotenv import load_dotenv
+import pytz
+
+# Load configurations from .env file
+load_dotenv()
+OUTPUT_BASE_PATH = os.getenv("OUTPUT_PATH", "AWF_scrap")
+
+DL_FRAMES_FOLDER = f"{OUTPUT_BASE_PATH}/dl_frames"
+weight = "/home/pi/pyro-scrapper/data/yolov8s_ncnn_model"
+conf_model = 0.1
 
 
-def filter_by_windows(cam_folder, labels):
-    labels.sort()
-    keep_labels = set()
-    current_list = []
-    for idx, file in enumerate(labels):
-        match = re.search(r"(\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2})", file)
-        t = datetime.strptime(match.group(), "%Y_%m_%dT%H_%M_%S")
-        if len(current_list) == 0:
-            last_time = t
-            current_list.append(file)
-        else:
-            if abs((t - last_time).total_seconds()) < 60 * 15:  # 15mn windows
-                current_list.append(file)
-                last_time = t
-            else:
-                if len(current_list) > 1:  # min 2 detection on the windows
-                    keep_labels = keep_labels.union(set(current_list))
+model = YOLO(weight, task="detect")
 
-                current_list = [file]
-                last_time = t
+# Get the current date in Los Angeles time zone
+la_tz = pytz.timezone('America/Los_Angeles')
+today_date_la = datetime.now(la_tz).strftime('%Y_%m_%d')
 
-    if len(current_list) > 1:
-        keep_labels = keep_labels.union(set(current_list))
+cams = glob.glob(f"{DL_FRAMES_FOLDER}/**/*")
+#cams = [cam for cam in cams if today_date_la not in cam]
+cams.sort()
 
-    time_windows = []
-    for file in keep_labels:
-        match = re.search(r"(\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2})", file)
-        t = datetime.strptime(match.group(), "%Y_%m_%dT%H_%M_%S")
-        t_min = t - timedelta(minutes=15)
-        t_max = t + timedelta(minutes=15)
-        time_windows.append((t_min, t_max))
-
-    imgs = glob.glob(cam_folder + "/*")
-    imgs.sort()
-    keep_imgs = set()
-    for file in imgs:
-        match = re.search(r"(\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2})", file)
-        t = datetime.strptime(match.group(), "%Y_%m_%dT%H_%M_%S")
-        for t_min, t_max in time_windows:
-            if t > t_min and t < t_max:
-                keep_imgs.add(file)
-                break
-
-    return keep_imgs, keep_labels
-
-
-def process_camera_folder(cam_folder, weight, conf_model, DONE_FOLDER):
+for cam in tqdm(cams):
     current_hour = datetime.now().hour
     if current_hour in (19, 1, 7):  # dl times
-        print("Main task paused for restricted hours...")
+        break
 
-        time.sleep(600)  # sleep 10 mn
-    else:
-        name = cam_folder.split("/")[-2] + "_" + cam_folder.split("/")[-1]
+    imgs = glob.glob(f"{cam}/*.jpg")
+    imgs.sort()
+    print(cam)
 
-        cmd = f"yolo predict task=detect model={weight} conf={conf_model} source={cam_folder} save=False save_txt imgsz='(384, 640)' save_conf name={name} project=runs_awf verbose=False"
-        print(f"* Command:\n{cmd}")
-        subprocess.call(cmd, shell=True)
-        labels = glob.glob(f"runs_awf/{name}/labels/*")
-        keep_imgs, keep_labels = filter_by_windows(cam_folder, labels)
-        if len(keep_imgs):
-            save_folder = os.path.join(DONE_FOLDER, name)
-            new_img_folder = os.path.join(save_folder, "images")
-            os.makedirs(new_img_folder, exist_ok=True)
-            new_label_folder = os.path.join(save_folder, "labels")
-            os.makedirs(new_label_folder, exist_ok=True)
-            for file in keep_imgs:
-                new_file = os.path.join(new_img_folder, os.path.basename(file))
-                shutil.copy(file, new_file)
-            for file in keep_labels:
-                new_file = os.path.join(new_label_folder, os.path.basename(file))
-                shutil.copy(file, new_file)
-            shutil.make_archive(save_folder, "zip", save_folder)
-            shutil.rmtree(save_folder)
+    print("imgs", len(imgs))
 
-        shutil.rmtree(cam_folder)
-        if len(labels):
-            shutil.rmtree(labels[0].split("labels")[0])
+    # Inference
+    wf_set = set()
+    for idx, file in enumerate(imgs):
+        results = model(file, imgsz=1024, conf=conf_model, iou=0, verbose=False)
+        confidences = results[0].boxes.conf.cpu().numpy()
+        if confidences.size > 0:
+            wf_set.add(file)
 
+    # Keep wf images
+    keep_set = set()
+    for idx, file in enumerate(imgs):
+        if file in wf_set:
+            current_list = set(imgs[max(0, idx - 15) : min(len(imgs) - 1, idx + 15)])
+            if (
+                len(current_list & wf_set) > 1
+            ):  # at least two wf detected on current fire
+                keep_set.update(current_list)
 
-def main():
-    DL_FRAMES_FOLDER = "/mnt/T7/AWF_scrap/dl_frames"
-    DONE_FOLDER = DL_FRAMES_FOLDER.replace("dl_frames", "done")
-    weight = "/home/pi/pyro-scrapper/data/model.onnx"
-    conf_model = 0.2
-    pool_size = 4
+    # Save wf images
+    processed_cam_folder = cam.replace("dl_frames", "dl_frames_processed")
+    os.makedirs(processed_cam_folder, exist_ok=True)
+    for file in keep_set:
+        new_file = file.replace("dl_frames", "dl_frames_processed")
+        shutil.move(file, new_file)
 
-    while True:
-        folders = glob.glob(f"{DL_FRAMES_FOLDER}/*")
-        folders.sort()
-
-        if len(folders):
-            cam_folders = glob.glob(f"{folders[0]}/*")
-
-            with Manager() as manager:
-                queue = manager.Queue()
-                for cam_folder in cam_folders:
-                    queue.put(cam_folder)
-
-                # Prepare the partial function with preconfigured arguments
-                partial_process = partial(
-                    process_camera_folder,
-                    weight=weight,
-                    conf_model=conf_model,
-                    DONE_FOLDER=DONE_FOLDER,
-                )
-
-                # Pool of worker processes
-                with Pool(pool_size) as pool:
-                    # Process the folders as they are available in the queue
-                    while not queue.empty():
-                        pool.apply_async(partial_process, (queue.get(),))
-                    pool.close()  # No more tasks will be submitted to the pool
-                    pool.join()  # Wait for the worker processes to exit
-
-
-if __name__ == "__main__":
-    main()
+    # Clean
+    shutil.make_archive(processed_cam_folder, "zip", processed_cam_folder)
+    shutil.rmtree(processed_cam_folder)
+    shutil.rmtree(cam)

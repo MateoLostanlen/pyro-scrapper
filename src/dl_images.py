@@ -12,6 +12,7 @@ import pytz
 import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
+import subprocess
 
 # Load configurations from .env file
 load_dotenv()
@@ -43,7 +44,7 @@ STATE_TIMEZONES = {
     "NV": "America/Los_Angeles",  # Nevada
     "Nevada": "America/Los_Angeles",  # Alternate name for Nevada
     "OR": "America/Los_Angeles",  # Oregon
-    "WA": "America/Los_Angeles"  # Washington
+    "WA": "America/Los_Angeles",  # Washington
     # Add other states and their timezones here
 }
 MAX_TIME = 100
@@ -313,6 +314,12 @@ def move_processed_directory():
         merge_folders(folder, folder.replace("temp", "dl_frames"))
 
 
+def process_images():
+    """Detect wf"""
+    cmd = "sudo /home/pi/pyro-scrapper/.venv/bin/python /home/pi/pyro-scrapper/src/process_awf.py"
+    subprocess.call(cmd, shell=True)
+
+
 # Main Script
 if __name__ == "__main__":
     try:
@@ -328,6 +335,9 @@ if __name__ == "__main__":
 
         # Move processed folders
         move_processed_directory()
+
+        # Process images
+        process_images()
 
     except Exception as e:
         logging.error(f"Failed to fetch camera data: {e}")

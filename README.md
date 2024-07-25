@@ -3,6 +3,22 @@
 ## Overview
 Pyro-Scrapper is a specialized tool designed for scraping images from [Alert Wildfire](https://www.alertwildfire.org/), splitting these images by camera, and preparing them for future analysis using Pyro-Engine (not yet developed). The primary objective of this project is to augment the Pyronear dataset with images of wildfires, which can be either actual fires or false positives, both of which are valuable for analysis.
 
+
+## Crontab 
+```bash
+# Run the script at 19:30 every day
+30 19 * * * sudo /home/pi/pyro-scrapper/.venv/bin/python /home/pi/pyro-scrapper/src/dl_images.py
+
+# Run the script at 01:30 every day
+30 1 * * * sudo /home/pi/pyro-scrapper/.venv/bin/python /home/pi/pyro-scrapper/src/dl_images.py
+
+# Run the script at 07:30 every day
+30 7 * * * sudo /home/pi/pyro-scrapper/.venv/bin/python /home/pi/pyro-scrapper/src/dl_images.py
+
+# Mount at reboot
+@reboot bash /home/pi/pyro-scrapper/script/reboot_script.sh
+```
+
 ## Features
 - **Image Scraping**: Downloads images from Alert Wildfire, leveraging the `dl_images.py` script. This involves fetching camera data, processing images, and handling various states and timezones. [View Script](https://github.com/MateoLostanlen/pyro-scrapper/blob/main/src/dl_images.py)
 - **Image Splitting**: The `split_cams.py` script is used to split images based on the camera they were captured from. It employs OCR techniques to differentiate between static and turning cameras, organizing images accordingly. [View Script](https://github.com/MateoLostanlen/pyro-scrapper/blob/main/src/split_cams.py)
