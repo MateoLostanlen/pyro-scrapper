@@ -21,7 +21,7 @@ OUTPUT_BASE_PATH = os.getenv("OUTPUT_PATH", "AWF_scrap")
 logging.basicConfig(level=logging.INFO)
 
 # Constants
-DURATION = "6h"
+DURATION = "6h"  # options: 15m, 1h, 3h, 6h, 12h
 CAMERAS_URL = (
     "https://s3-us-west-2.amazonaws.com/alertwildfire-data-public/all_cameras-v2.json"
 )
@@ -43,7 +43,7 @@ STATE_TIMEZONES = {
     "NV": "America/Los_Angeles",  # Nevada
     "Nevada": "America/Los_Angeles",  # Alternate name for Nevada
     "OR": "America/Los_Angeles",  # Oregon
-    "WA": "America/Los_Angeles"  # Washington
+    "WA": "America/Los_Angeles",  # Washington
     # Add other states and their timezones here
 }
 MAX_TIME = 100
